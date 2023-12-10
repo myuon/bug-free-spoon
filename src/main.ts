@@ -26,7 +26,7 @@ const mat = new THREE.ShaderMaterial({
   fragmentShader,
 });
 
-const geometry = new THREE.BoxGeometry(1, 1, 1);
+const geometry = new THREE.BoxGeometry(2, 2, 2);
 scene.add(new THREE.Mesh(geometry, mat));
 
 camera.position.z = 5;
