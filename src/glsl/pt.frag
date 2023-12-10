@@ -7,26 +7,95 @@ const float PI = 3.14159265;
 const float angle = 60.0;
 const float fov = angle * 0.5 * PI / 180.0;
 
-const float sphereSize = 1.0;
-const vec3 lightDir = vec3(-0.577, 0.577, 0.577);
-
-float distanceFunc(vec3 p){
-    return length(p) - sphereSize;
+float rand(vec2 p){
+    return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453);
 }
 
-vec3 getNormal(vec3 p){
-    float d = 0.0001;
-    return normalize(vec3(
-        distanceFunc(p + vec3(  d, 0.0, 0.0)) - distanceFunc(p + vec3( -d, 0.0, 0.0)),
-        distanceFunc(p + vec3(0.0,   d, 0.0)) - distanceFunc(p + vec3(0.0,  -d, 0.0)),
-        distanceFunc(p + vec3(0.0, 0.0,   d)) - distanceFunc(p + vec3(0.0, 0.0,  -d))
-    ));
+vec3 randOnHemisphere(vec3 n){
+    vec3 u = normalize(cross(n, vec3(0.0, 1.0, 0.0)));
+    vec3 v = normalize(cross(u, n));
+    float r1 = rand(vec2(float(n.x), 0.0));
+    float r2 = rand(vec2(float(n.y), 0.0));
+    float r = sqrt(r1);
+    float theta = 2.0 * PI * r2;
+    float x = r * cos(theta);
+    float y = r * sin(theta);
+    float z = sqrt(1.0 - r1);
+    return u * x + v * y + n * z;
+}
+
+struct Circle {
+    vec3 center;
+    float radius;
+    vec3 emission;
+};
+
+const Circle[] objects = Circle[](
+    Circle(vec3(-0.577, 0.577, 0.577), 0.1, vec3(10.0, 0.2, 0.2)),
+    Circle(vec3(0.577, 0.577, 0.577), 0.1, vec3(0.2, 0.2, 10.0)),
+    Circle(vec3(0.0, 0.0, -2.0), 1.0, vec3(0.0, 0.1, 0.0)),
+    Circle(vec3(0.0, 0.0, 0.0), 0.0, vec3(0.0, 0.0, 0.0))
+);
+
+struct Hit {
+    float dist;
+    int index;
+    vec3 normal;
+    vec3 point;
+};
+
+Hit intersect(vec3 origin, vec3 ray){
+    Hit hit = Hit(10000.0, -1, vec3(0.0), vec3(0.0));
+    for(int i = 0; i < objects.length(); i++){
+        Circle obj = objects[i];
+        float b = dot(ray, origin - obj.center);
+        float c = dot(origin - obj.center, origin - obj.center) - obj.radius * obj.radius;
+        float d = b * b - c;
+        if(d > 0.001){
+            float t1 = -b - sqrt(d);
+            if(t1 > 0.001 && t1 < hit.dist){
+                hit.dist = t1;
+                hit.index = i;
+                hit.point = origin + ray * t1;
+                hit.normal = randOnHemisphere(normalize(hit.point - obj.center));
+            }
+
+            float t2 = -b + sqrt(d);
+            if(t2 > 0.001 && t2 < hit.dist){
+                hit.dist = t2;
+                hit.index = i;
+                hit.point = origin + ray * t2;
+                hit.normal = randOnHemisphere(normalize(hit.point - obj.center));
+            }
+        }
+    }
+
+    return hit;
+}
+
+vec3 raytrace(vec3 ray, vec3 cPos, int count) {
+    vec3 color = vec3(0.0);
+
+    while (true) {
+        Hit hit = intersect(cPos, ray);
+
+        if(hit.index != -1 && count < 5){
+            // return hit.normal;
+            color += vec3(objects[hit.index].emission * pow(2.0, float(count)));
+
+            if(rand(vec2(float(hit.point.x), float(hit.point.y))) < 0.5){
+                ray = hit.normal;
+                cPos = hit.point;
+                count += 1;
+                continue;
+            }
+        }
+
+        return color;
+    }
 }
 
 void main(void){
-    // fragment position
-    vec2 p = (gl_FragCoord.xy * 2.0 - resolution) / min(resolution.x, resolution.y);
-    
     // camera
     vec3 cPos = vec3(0.0,  0.0,  2.0);
     vec3 cDir = vec3(0.0,  0.0, -1.0);
@@ -34,25 +103,16 @@ void main(void){
     vec3 cSide = cross(cDir, cUp);
     float targetDepth = 1.0;
     
-    // ray
-    vec3 ray = normalize(vec3(sin(fov) * p.x, sin(fov) * p.y, -cos(fov)));
-    
-    // marching loop
-    float distance = 0.0; // レイとオブジェクト間の最短距離
-    float rLen = 0.0;     // レイに継ぎ足す長さ
-    vec3  rPos = cPos;    // レイの先端位置
-    for(int i = 0; i < 16; i++){
-        distance = distanceFunc(rPos);
-        rLen += distance;
-        rPos = cPos + ray * rLen;
+    int count = 0;
+    int spp = 16;
+    vec3 color = vec3(0.0);
+    for (int i = 0; i < spp; i++) {
+        vec2 dp = vec2(rand(gl_FragCoord.xy + vec2(i,0)), rand(gl_FragCoord.xy + vec2(0,i)));
+        vec2 p = ((gl_FragCoord.xy + dp) * 2.0 - resolution) / min(resolution.x, resolution.y);
+        vec3 ray = normalize(vec3(sin(fov) * p.x, sin(fov) * p.y, -cos(fov)));
+
+        color += raytrace(ray, cPos, count);
     }
-    
-    // hit check
-    if(abs(distance) < 0.001){
-        vec3 normal = getNormal(rPos);
-        float diff = clamp(dot(lightDir, normal), 0.1, 1.0);
-        gl_FragColor = vec4(vec3(diff), 1.0);
-    }else{
-        gl_FragColor = vec4(vec3(0.0), 1.0);
-    }
+
+    gl_FragColor = vec4(color / float(spp), 1.0);
 }
