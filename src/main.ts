@@ -2,6 +2,7 @@ import "./style.css";
 import * as THREE from "three";
 import fragmentShader from "./glsl/pt.frag?raw";
 import vertexShader from "./glsl/pt.vert?raw";
+import Stats from "three/examples/jsm/libs/stats.module.js";
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
@@ -31,9 +32,13 @@ scene.add(new THREE.Mesh(geometry, mat));
 
 camera.position.z = 5;
 
+const stats = new Stats();
+document.body.appendChild(stats.dom);
+
 function animate() {
   requestAnimationFrame(animate);
 
+  stats.update();
   renderer.render(scene, camera);
 }
 
