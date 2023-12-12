@@ -12,7 +12,19 @@ const camera = new THREE.PerspectiveCamera(
   1000
 );
 
-const renderer = new THREE.WebGLRenderer();
+const canvas = document.createElement("canvas");
+const context = canvas.getContext("webgl2");
+
+const screenCopyRenderTarget = new THREE.WebGLRenderTarget(
+  window.innerWidth,
+  window.innerHeight
+);
+screenCopyRenderTarget.texture.generateMipmaps = false;
+
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  context: context!,
+});
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
@@ -22,6 +34,8 @@ const mat = new THREE.ShaderMaterial({
     resolution: {
       value: new THREE.Vector2(window.innerWidth, window.innerHeight),
     },
+    delta: { value: 1 },
+    tex: { value: screenCopyRenderTarget.texture },
   },
   vertexShader,
   fragmentShader,
@@ -39,7 +53,15 @@ function animate() {
   requestAnimationFrame(animate);
 
   stats.update();
+
+  renderer.setRenderTarget(null);
   renderer.render(scene, camera);
+
+  renderer.setRenderTarget(screenCopyRenderTarget);
+  renderer.render(scene, camera);
+
+  mat.uniforms.time.value += 0.01;
+  mat.uniforms.delta.value += 1;
 }
 
 animate();

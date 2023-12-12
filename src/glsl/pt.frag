@@ -2,6 +2,8 @@ precision mediump float;
 uniform float time;
 uniform vec2  mouse;
 uniform vec2  resolution;
+uniform int delta;
+uniform sampler2D tex;
 
 const float PI = 3.14159265;
 const float angle = 60.0;
@@ -138,12 +140,12 @@ void main(void){
     int spp = 8;
     vec3 color = vec3(0.0);
     for (int i = 0; i < spp; i++) {
-        vec2 dp = vec2(rand(gl_FragCoord.xy + vec2(i,0)), rand(gl_FragCoord.xy + vec2(0,i)));
+        vec2 dp = vec2(rand(gl_FragCoord.xy + vec2(i,delta)), rand(gl_FragCoord.xy + vec2(delta,i)));
         vec2 p = ((gl_FragCoord.xy + dp) * 2.0 - resolution) / min(resolution.x, resolution.y);
         Ray ray = Ray(cPos, normalize(vec3(sin(fov) * p.x, sin(fov) * p.y, -cos(fov))));
 
         color += raytrace(ray, count);
     }
 
-    gl_FragColor = vec4(color / float(spp), 1.0);
+    gl_FragColor = vec4(texelFetch(tex, ivec2(gl_FragCoord.xy), 0).rgb + color / float(spp), 1.0);
 }
